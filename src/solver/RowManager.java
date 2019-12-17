@@ -13,12 +13,12 @@ public class RowManager extends LineManager {
     }
 
     /**
-     *
-     * @param list
-     * @param firstSpace
-     * @param regLength
-     * @return
-     * @throws PicrossException
+     * Finds the next spot where the specified region fits.
+     * @param list the list of tiles to fit the region into
+     * @param firstSpace the first potential space for the region
+     * @param regLength the length of teh region
+     * @return the lowest available space equal to or greater than firstSpace
+     * @throws PicrossException when a spot can't be found
      */
     private int nextAvailableSpace(Tile[] list, int firstSpace, int regLength) throws PicrossException {
         int lineLength = list.length;
@@ -39,11 +39,11 @@ public class RowManager extends LineManager {
     }
 
     /**
-     *
-     * @param list
-     * @param firstSpace
-     * @param regLength
-     * @param state
+     * Mark the tiles in a range with a certain state.
+     * @param list the list of tiles
+     * @param firstSpace the first space to mark
+     * @param regLength the length of the region to mark
+     * @param state the state to mark the region as
      */
     private void fillTiles(Tile[] list, int firstSpace, int regLength, Tile.State state) {
         for (int i = firstSpace; i < firstSpace + regLength; ++i) {
@@ -52,26 +52,27 @@ public class RowManager extends LineManager {
     }
 
     /**
-     *
-     * @param regions
-     * @return
+     * Finds the minimum number of tiles required from a region to the end.
+     * @param regions the list of regions
+     * @param firstReg the first region to measure
+     * @return the minimum number of tiles needed for the region range
      */
-    private int minSize(Region[] regions) {
+    private int minSize(Region[] regions, int firstReg) {
         int size = 0;
-        for (Region region : regions) {
-            size += region.getLength();
+        for (int i = firstReg; i < regions.length; ++i) {
+            size += regions[i].getLength();
         }
         return size;
     }
 
     /**
-     *
-     * @param regions
-     * @param regIndex
-     * @param step
-     * @param start
-     * @return
-     * @throws PicrossException
+     * Recursively find all of the valid orientations of tiles in the line.
+     * @param regions the list of regions
+     * @param regIndex the region to work on
+     * @param step the current line in this step of the recursion
+     * @param start the index to start at in the line
+     * @return the valid orientations of tiles in the line
+     * @throws PicrossException when there is no valid orientation
      */
     private ArrayList<Tile[]> validOrientations(Region[] regions, int regIndex, Tile[] step, int start) throws PicrossException {
         ArrayList<Tile[]> orientations = new ArrayList<>();
@@ -81,10 +82,11 @@ public class RowManager extends LineManager {
         }
         Region region = regions[regIndex];
         int regLength = region.getLength();
+        int minAfter = minSize(regions, regIndex);
         if (region.getState() == Tile.State.FILLED) {
             try {
-                for (int i = start; i + regLength <= step.length; ++i) {
-                    int nextIndex = nextAvailableSpace(step, start, regLength);
+                for (int i = start; i + regLength + minAfter <= step.length; ++i) {
+                    int nextIndex = nextAvailableSpace(step, i, regLength);
                     Tile[] next = step.clone();
                     fillTiles(next, nextIndex, regLength, Tile.State.FILLED);
                     orientations.addAll(validOrientations(regions, regIndex + 1, next, nextIndex + regLength));
@@ -98,14 +100,18 @@ public class RowManager extends LineManager {
         }
         else {
             try {
-                for (int i = 0; start + i <= step.length; ++i) {
+                for (int i = 0; start + i + minAfter <= step.length; ++i) {
                     int nextIndex = nextAvailableSpace(step, start, regLength + i);
                     Tile[] next = step.clone();
-                    fillTiles(next, nextIndex, regLength, Tile.State.UNFILLED);
-                    orientations.addAll(validOrientations(regions, regIndex + 1, next, nextIndex + regLength));
+                    fillTiles(next, nextIndex, regLength + i, Tile.State.UNFILLED);
+                    orientations.addAll(validOrientations(regions, regIndex + 1, next, nextIndex + regLength + i));
                 }
             }
-            catch (PicrossException pex) {}
+            catch (PicrossException pex) {
+                if (regLength > 0) {
+                    throw new PicrossException(PicrossException.Type.DECISION);
+                }
+            }
         }
         return orientations;
     }
@@ -117,39 +123,25 @@ public class RowManager extends LineManager {
      */
     private Tile[] knownInfo() throws PicrossException {
         Tile[] list = this.line.getTiles();
-        int[] regStarts = new int[this.regions.length];
-        int lineIndex = 0;
-        for (int regIndex = 0; regIndex < this.regions.length; ++regIndex) {
-            Region region = this.regions[regIndex];
-            Tile.State state = region.getState();
-            int regEnd = lineIndex + region.getLength();
-            boolean setting = false;
-            for (; lineIndex < regEnd; ++lineIndex) {
-                if (regEnd > this.length) {
-                    throw new PicrossException(PicrossException.Type.DECISION);
+        ArrayList<Tile[]> orientations = validOrientations(this.regions, 0, list, 0);
+        if (orientations.isEmpty()) {
+            throw new PicrossException(PicrossException.Type.DECISION);
+        }
+        for (Tile[] orientation : orientations) {
+            for (int i = 0; i < list.length; ++i) {
+                if (list[i].getState() == Tile.State.AMBIGUOUS) {
+                    list[i].setState(orientation[i].getState());
                 }
-                Tile tile = list[lineIndex];
-                if (state == tile.getState()) {
-                    if (!setting) {
-                        setting = true;
-                        regStarts[regIndex] = lineIndex;
-                    }
+                else if (list[i].getState() != orientation[i].getState()) {
+                    list[i].setState(Tile.State.AMBIGUOUS);
                 }
-                else if (state.getOpposite() == tile.getState()) {
-                    setting = false;
-                    regEnd = lineIndex + 1;
-                }
-            }
-            for (int i = regStarts[regIndex]; i < regEnd; ++i) {
-                list[i].setState(state);
             }
         }
-        // TODO this only gets the first, it needs to find ALL possibilities for usefulness
         return list;
     }
 
     @Override
     public void run() {
-
+        // TODO
     }
 }
