@@ -22,8 +22,12 @@ public class Tile {
 
     private State state;
 
+    public Tile(State state) {
+        this.state = state;
+    }
+
     public Tile() {
-        this.state = State.AMBIGUOUS;
+        this(State.AMBIGUOUS);
     }
 
     public State getState() {
