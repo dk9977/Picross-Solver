@@ -4,25 +4,13 @@ public abstract class Line {
 
     protected int index, length;
     protected Tile[] tiles;
-    protected Region[] regions;
+    protected int[] regions;
 
-    public Line(int index, int length, Tile[] tiles, int[] regNums) {
+    public Line(int index, int length, Tile[] tiles, int[] regions) {
         this.index = index;
         this.length = length;
         this.tiles = tiles;
-        int regs = 1 + regNums.length * 2;
-        this.regions = new Region[regs];
-        boolean fillMode = false;
-        for (int i = 0; i < regs; ++i) {
-            if (fillMode) {
-                this.regions[i] = new Region(regNums[i / 2], Tile.State.FILLED);
-            } else if (i == 0 || i == regs - 1) {
-                this.regions[i] = new Region(0, Tile.State.UNFILLED);
-            } else {
-                this.regions[i] = new Region(1, Tile.State.UNFILLED);
-            }
-            fillMode = !fillMode;
-        }
+        this.regions = regions;
     }
 
     public int getIndex() {
@@ -41,7 +29,7 @@ public abstract class Line {
         return this.tiles[i];
     }
 
-    public Region[] getRegions() {
-        return regions;
+    public int[] getRegions() {
+        return this.regions;
     }
 }
